@@ -88,13 +88,13 @@ export default function App() {
     
     const newGuestRef = push(guestsRef);
     const payload = {
-      name: formData.name,
+      name: formData.name.toUpperCase().trim(),
       dni: formattedDni,
-      email: formData.email,
-      phone: formData.phone,
+      email: formData.email.toLowerCase().trim(), // Mail en minúsculas
+      phone: formData.phone.trim(),
       attending: formData.attending,
       companions: parseInt(formData.companions) || 0,
-      dietary: formData.dietary,
+      dietary: formData.dietary ? formData.dietary.toUpperCase().trim() : 'NINGUNA',
       present: false,
       checkInTime: null,
       createdAt: new Date().toISOString()
@@ -135,13 +135,13 @@ export default function App() {
     const newRef = push(guestsRef);
 
     set(newRef, {
-      name: newGuest.name,
+      name: newGuest.name.toUpperCase().trim(),
       dni: formattedDni,
-      email: 'Registro Presencial',
+      email: 'registro.presencial@hotel.com',
       phone: '-',
       attending: 'si',
       companions: parseInt(newGuest.companions) || 0,
-      dietary: newGuest.dietary || 'Ninguna',
+      dietary: newGuest.dietary ? newGuest.dietary.toUpperCase().trim() : 'NINGUNA',
       present: true,
       checkInTime: timeStr,
       createdAt: now.toISOString()
@@ -166,14 +166,14 @@ export default function App() {
 
   // Exportar a CSV
   const exportToCSV = () => {
-    const headers = ["Nombre", "DNI", "Email", "Telefono", "Acompañantes", "Restricciones", "Estado", "Hora Llegada"];
+    const headers = ["NOMBRE", "DNI", "EMAIL", "TELEFONO", "ACOMPAÑANTES", "RESTRICCIONES", "ESTADO", "HORA LLEGADA"];
     const rows = guests.map(g => [
       `"${g.name}"`,
       `"${g.dni}"`,
       `"${g.email || ''}"`,
       `"${g.phone || ''}"`,
       g.companions,
-      `"${g.dietary || 'Ninguna'}"`,
+      `"${g.dietary || 'NINGUNA'}"`,
       g.present ? "PRESENTE" : "AUSENTE",
       `"${g.checkInTime || '-'}"`
     ]);
@@ -182,7 +182,7 @@ export default function App() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `asistencia_amerian_jujuy.csv`);
+    link.setAttribute("download", `ASISTENCIA_AMERIAN_JUJUY.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -200,7 +200,8 @@ export default function App() {
   const attendanceRate = totalGuests > 0 ? Math.round((totalPresent / totalGuests) * 100) : 0;
 
   const filteredGuests = guests.filter(g => {
-    const matchesDni = g.dni.includes(searchDni.replace(/\D/g, '')) || g.name.toLowerCase().includes(searchDni.toLowerCase());
+    const searchUpper = searchDni.toUpperCase();
+    const matchesDni = g.dni.includes(searchDni.replace(/\D/g, '')) || g.name.includes(searchUpper);
     if (filter === 'present') return matchesDni && g.present;
     if (filter === 'absent') return matchesDni && !g.present;
     return matchesDni;
@@ -327,9 +328,9 @@ export default function App() {
                     type="text"
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ej. Carlos Mendoza"
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value.toUpperCase() })}
+                    placeholder="EJ. CARLOS MENDOZA"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 uppercase focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
@@ -340,7 +341,7 @@ export default function App() {
                     required
                     value={formData.dni}
                     onChange={(e) => setFormData({ ...formData, dni: e.target.value })}
-                    placeholder="Ej. 35123456"
+                    placeholder="35123456"
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -351,9 +352,9 @@ export default function App() {
                     <input
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
                       placeholder="nombre@ejemplo.com"
-                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 lowercase focus:outline-none focus:border-amber-500"
                     />
                   </div>
                   <div>
@@ -374,10 +375,10 @@ export default function App() {
                     <select
                       value={formData.attending}
                       onChange={(e) => setFormData({ ...formData, attending: e.target.value })}
-                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 uppercase focus:outline-none focus:border-amber-500"
                     >
-                      <option value="si">Sí, Asistiré</option>
-                      <option value="no">No podré asistir</option>
+                      <option value="si">SÍ, ASISTIRÉ</option>
+                      <option value="no">NO PODRÉ ASISTIR</option>
                     </select>
                   </div>
                   <div>
@@ -385,12 +386,12 @@ export default function App() {
                     <select
                       value={formData.companions}
                       onChange={(e) => setFormData({ ...formData, companions: e.target.value })}
-                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 uppercase focus:outline-none focus:border-amber-500"
                     >
-                      <option value="0">Solo yo</option>
-                      <option value="1">+1 Acompañante</option>
-                      <option value="2">+2 Acompañantes</option>
-                      <option value="3">+3 Acompañantes</option>
+                      <option value="0">SOLO YO</option>
+                      <option value="1">+1 ACOMPAÑANTE</option>
+                      <option value="2">+2 ACOMPAÑANTES</option>
+                      <option value="3">+3 ACOMPAÑANTES</option>
                     </select>
                   </div>
                 </div>
@@ -400,9 +401,9 @@ export default function App() {
                   <input
                     type="text"
                     value={formData.dietary}
-                    onChange={(e) => setFormData({ ...formData, dietary: e.target.value })}
-                    placeholder="Celíaco, Vegetariano, Vegano, Alergia..."
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                    onChange={(e) => setFormData({ ...formData, dietary: e.target.value.toUpperCase() })}
+                    placeholder="CELÍACO, VEGETARIANO, VEGANO, ALERGIA..."
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 uppercase focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
@@ -412,7 +413,7 @@ export default function App() {
                 className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold rounded-xl transition shadow-lg shadow-amber-500/10 flex items-center justify-center space-x-2"
               >
                 <Sparkles className="w-5 h-5" />
-                <span>Confirmar Mi Asistencia</span>
+                <span>CONFIRMAR MI ASISTENCIA</span>
               </button>
             </form>
           ) : (
@@ -422,14 +423,14 @@ export default function App() {
                 <CheckCircle className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-xl font-serif text-amber-100 font-bold">¡Confirmación Exitosa!</h3>
+                <h3 className="text-xl font-serif text-amber-100 font-bold">¡CONFIRMACIÓN EXITOSA!</h3>
                 <p className="text-xs text-neutral-400 mt-1">Tu lugar ha sido reservado en el evento.</p>
               </div>
 
               <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-left text-xs space-y-2">
-                <p className="text-neutral-400">Titular: <span className="text-neutral-100 font-semibold">{submittedPass.name}</span></p>
+                <p className="text-neutral-400">TITULAR: <span className="text-neutral-100 font-semibold">{submittedPass.name}</span></p>
                 <p className="text-neutral-400">DNI: <span className="text-neutral-100 font-semibold">{submittedPass.dni}</span></p>
-                <p className="text-neutral-400">Acompañantes: <span className="text-neutral-100 font-semibold">{submittedPass.companions}</span></p>
+                <p className="text-neutral-400">ACOMPAÑANTES: <span className="text-neutral-100 font-semibold">{submittedPass.companions}</span></p>
               </div>
 
               <p className="text-xs text-amber-400/80 italic">
@@ -456,8 +457,8 @@ export default function App() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-neutral-900 border border-neutral-800 p-4 rounded-2xl">
             <div>
               <h2 className="text-xl font-bold text-amber-200 flex items-center space-x-2">
-                <span>Control de Recepción</span>
-                <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30">En Vivo</span>
+                <span>CONTROL DE RECEPCIÓN</span>
+                <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30">EN VIVO</span>
               </h2>
               <p className="text-xs text-neutral-400">Búsqueda rápida por DNI o Nombre</p>
             </div>
@@ -465,19 +466,19 @@ export default function App() {
             {/* KPIs */}
             <div className="grid grid-cols-4 gap-2 w-full md:w-auto text-center">
               <div className="bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">
-                <p className="text-xs text-neutral-400">Total</p>
+                <p className="text-xs text-neutral-400">TOTAL</p>
                 <p className="text-lg font-bold text-neutral-100">{totalGuests}</p>
               </div>
               <div className="bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">
-                <p className="text-xs text-green-400">Presentes</p>
+                <p className="text-xs text-green-400">PRESENTES</p>
                 <p className="text-lg font-bold text-green-400">{totalPresent}</p>
               </div>
               <div className="bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">
-                <p className="text-xs text-amber-400">Ausentes</p>
+                <p className="text-xs text-amber-400">AUSENTES</p>
                 <p className="text-lg font-bold text-amber-400">{totalAbsent}</p>
               </div>
               <div className="bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">
-                <p className="text-xs text-neutral-400">Asistencia</p>
+                <p className="text-xs text-neutral-400">ASISTENCIA</p>
                 <p className="text-lg font-bold text-amber-200">{attendanceRate}%</p>
               </div>
             </div>
@@ -488,14 +489,14 @@ export default function App() {
                 className="flex-1 md:flex-none px-3 py-2 bg-amber-500 text-black font-bold rounded-xl text-xs flex items-center justify-center space-x-1 hover:bg-amber-400"
               >
                 <Plus className="w-4 h-4" />
-                <span>Agregar VIP</span>
+                <span>AGREGAR VIP</span>
               </button>
               <button
                 onClick={exportToCSV}
                 className="flex-1 md:flex-none px-3 py-2 bg-neutral-800 text-neutral-200 rounded-xl text-xs flex items-center justify-center space-x-1 hover:bg-neutral-700"
               >
                 <FileSpreadsheet className="w-4 h-4" />
-                <span>Exportar CSV</span>
+                <span>EXPORTAR CSV</span>
               </button>
             </div>
           </div>
@@ -510,9 +511,9 @@ export default function App() {
                 <input
                   type="text"
                   value={searchDni}
-                  onChange={(e) => setSearchDni(e.target.value)}
-                  placeholder="Ingrese DNI o Nombre..."
-                  className="w-full bg-neutral-950 border border-amber-500/40 rounded-xl pl-10 pr-4 py-2.5 text-lg font-mono text-amber-200 focus:outline-none"
+                  onChange={(e) => setSearchDni(e.target.value.toUpperCase())}
+                  placeholder="INGRESE DNI O NOMBRE..."
+                  className="w-full bg-neutral-950 border border-amber-500/40 rounded-xl pl-10 pr-4 py-2.5 text-lg font-mono text-amber-200 uppercase focus:outline-none"
                 />
               </div>
 
@@ -542,19 +543,19 @@ export default function App() {
                   onClick={() => setFilter('all')}
                   className={`flex-1 py-1.5 rounded-lg font-medium transition ${filter === 'all' ? 'bg-amber-500 text-black' : 'text-neutral-400'}`}
                 >
-                  Todos ({guests.length})
+                  TODOS ({guests.length})
                 </button>
                 <button
                   onClick={() => setFilter('present')}
                   className={`flex-1 py-1.5 rounded-lg font-medium transition ${filter === 'present' ? 'bg-green-500 text-black' : 'text-neutral-400'}`}
                 >
-                  Presentes ({totalPresent})
+                  PRESENTES ({totalPresent})
                 </button>
                 <button
                   onClick={() => setFilter('absent')}
                   className={`flex-1 py-1.5 rounded-lg font-medium transition ${filter === 'absent' ? 'bg-amber-600 text-black' : 'text-neutral-400'}`}
                 >
-                  Ausentes ({totalAbsent})
+                  AUSENTES ({totalAbsent})
                 </button>
               </div>
             </div>
@@ -562,7 +563,7 @@ export default function App() {
             {/* Lista de Invitados */}
             <div className="lg:col-span-2 bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3">
               <h3 className="text-sm font-bold text-neutral-300">
-                Lista de Invitados ({filteredGuests.length})
+                LISTA DE INVITADOS ({filteredGuests.length})
               </h3>
 
               {loading ? (
@@ -594,7 +595,7 @@ export default function App() {
                         </div>
                         <div className="flex items-center space-x-3 text-xs text-neutral-400">
                           <span>Acompañantes: <strong className="text-neutral-200">{g.companions}</strong></span>
-                          {g.dietary && g.dietary !== 'Ninguna' && (
+                          {g.dietary && g.dietary !== 'NINGUNA' && (
                             <span className="text-amber-400 font-semibold">Alimentación: {g.dietary}</span>
                           )}
                         </div>
@@ -614,7 +615,7 @@ export default function App() {
                             onClick={() => handleCheckIn(g.id)}
                             className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition shadow-md active:scale-95"
                           >
-                            Marcar Presente
+                            MARCAR PRESENTE
                           </button>
                         )}
                       </div>
@@ -633,7 +634,7 @@ export default function App() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-neutral-900 border border-amber-500/30 rounded-2xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-lg font-bold text-amber-100">Acreditación Express en Puerta</h3>
+            <h3 className="text-lg font-bold text-amber-100">ACREDITACIÓN EXPRESS EN PUERTA</h3>
             
             <form onSubmit={handleManualAdd} className="space-y-3 text-xs">
               <div>
@@ -642,8 +643,8 @@ export default function App() {
                   type="text"
                   required
                   value={newGuest.name}
-                  onChange={(e) => setNewGuest({ ...newGuest, name: e.target.value })}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100"
+                  onChange={(e) => setNewGuest({ ...newGuest, name: e.target.value.toUpperCase() })}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100 uppercase"
                 />
               </div>
               <div>
@@ -672,9 +673,9 @@ export default function App() {
                   <input
                     type="text"
                     value={newGuest.dietary}
-                    onChange={(e) => setNewGuest({ ...newGuest, dietary: e.target.value })}
-                    placeholder="Ninguna"
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100"
+                    onChange={(e) => setNewGuest({ ...newGuest, dietary: e.target.value.toUpperCase() })}
+                    placeholder="NINGUNA"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100 uppercase"
                   />
                 </div>
               </div>
@@ -685,13 +686,13 @@ export default function App() {
                   onClick={() => setShowAddModal(false)}
                   className="w-1/2 py-2.5 rounded-xl bg-neutral-800 text-neutral-300"
                 >
-                  Cancelar
+                  CANCELAR
                 </button>
                 <button
                   type="submit"
                   className="w-1/2 py-2.5 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400"
                 >
-                  Ingresar y Acreditar
+                  INGRESAR Y ACREDITAR
                 </button>
               </div>
             </form>
