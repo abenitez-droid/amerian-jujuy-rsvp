@@ -218,7 +218,7 @@ export default function App() {
               <Building2 className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-lg font-serif font-bold tracking-wider text-amber-100">AMÉRAN</h1>
+              <h1 className="text-lg font-serif font-bold tracking-wider text-amber-100">AMÉRIAN</h1>
               <p className="text-xs text-amber-400/80 tracking-widest uppercase">Hotel & Suites Jujuy</p>
             </div>
           </div>
