@@ -301,7 +301,7 @@ export default function App() {
             <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl"></div>
             
             <p className="text-xs text-amber-400 tracking-widest uppercase font-semibold">Gran Inauguración</p>
-            <h2 className="text-3xl sm:text-4xl font-serif text-amber-100 font-bold">Amérian Hotel Jujuy</h2>
+            <h2 className="text-3xl sm:text-4xl font-serif text-amber-100 font-bold">Amérian Jujuy</h2>
             <p className="text-sm text-neutral-300 leading-relaxed max-w-md mx-auto">
               Nos complace invitarle a la velada inaugural de nuestro nuevo hotel. Una noche de distinción, gastronomía y celebración.
             </p>
