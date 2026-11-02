@@ -222,14 +222,16 @@ export default function App() {
       <header className="border-b border-amber-900/30 bg-neutral-900/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-600 to-amber-300 flex items-center justify-center text-black font-bold">
-              <Building2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-lg font-serif font-bold tracking-wider text-amber-100">AMÉRIAN</h1>
-              <p className="text-xs text-amber-400/80 tracking-widest uppercase">Jujuy</p>
-            </div>
+          <img 
+            src="/logo.png" 
+            alt="Logo Amérian" 
+            className="h-10 w-auto object-contain"
+          />
+          <div>
+            <h1 className="text-lg font-serif font-bold tracking-wider text-amber-100">AMÉRIAN</h1>
+            <p className="text-xs text-amber-400/80 tracking-widest uppercase">Hotel & Suites Jujuy</p>
           </div>
+        </div>
 
           <div className="flex items-center space-x-2">
             {view === 'guest' ? (
