@@ -309,30 +309,28 @@ export default function App() {
               Será un placer compartir este momento único. Una noche de gastronomía, distinción y celebración.
             </p>
 
-            {/* Fecha, Hora, Lugar y Estacionamiento */}
             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-neutral-800 text-xs">
               <div className="flex items-center justify-center space-x-2 text-neutral-300">
                 <Calendar className="w-4 h-4 text-amber-400" />
-                <span>Viernes 14 Nov</span>
+                <span>Miercoles 25 Nov</span>
               </div>
               <div className="flex items-center justify-center space-x-2 text-neutral-300">
                 <Clock className="w-4 h-4 text-amber-400" />
-                <span>20:00 Hs</span>
+                <span>19:00 Hs</span>
               </div>
               <div className="col-span-2 flex items-center justify-center space-x-2 text-neutral-300">
                 <MapPin className="w-4 h-4 text-amber-400" />
                 <span>Salón Rio Blanco - Hotel Amérian - San Salvador de Jujuy</span>
               </div>
 
-              {/* Aviso de estacionamiento */}
-              <div className="col-span-2 mt-1 py-1 px-3 rounded-lg bg-neutral-900 border border-neutral-800 text-center">
-                <span className="text-[11px] tracking-wider text-amber-300 font-semibold">
+              {/* Aviso Estacionamiento debajo del Salón */}
+              <div className="col-span-2 mt-2 py-1.5 px-3 rounded-lg bg-neutral-900 border border-neutral-800 text-center">
+                <span className="text-[11px] tracking-wider text-amber-400 font-semibold">
                   ESTACIONAMIENTO NO DISPONIBLE
                 </span>
               </div>
             </div>
           </div>
-
             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-neutral-800 text-xs">
               <div className="flex items-center justify-center space-x-2 text-neutral-300">
                 <Calendar className="w-4 h-4 text-amber-400" />
