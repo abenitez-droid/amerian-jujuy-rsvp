@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logoImg from '../logo.png';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, push, set, update } from 'firebase/database';
 import { 
