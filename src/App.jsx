@@ -303,7 +303,7 @@ export default function App() {
             <p className="text-xs text-amber-400 tracking-widest uppercase font-semibold">Gran Inauguración</p>
             <h2 className="text-3xl sm:text-4xl font-serif text-amber-100 font-bold">Amérian Jujuy</h2>
             <p className="text-sm text-neutral-300 leading-relaxed max-w-md mx-auto">
-              Nos complace invitarle a la velada inaugural de nuestro nuevo hotel. Una noche de distinción, gastronomía y celebración.
+              Será un placer compartir este momento único. Una noche de gastronomía, distinción y celebración.
             </p>
 
             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-neutral-800 text-xs">
@@ -313,7 +313,7 @@ export default function App() {
               </div>
               <div className="flex items-center justify-center space-x-2 text-neutral-300">
                 <Clock className="w-4 h-4 text-amber-400" />
-                <span>20:00 Hs</span>
+                <span>19:00 Hs</span>
               </div>
               <div className="col-span-2 flex items-center justify-center space-x-2 text-neutral-300">
                 <MapPin className="w-4 h-4 text-amber-400" />
