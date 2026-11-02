@@ -308,6 +308,12 @@ export default function App() {
             <p className="text-sm text-neutral-300 leading-relaxed max-w-md mx-auto">
               Será un placer compartir este momento único. Una noche de gastronomía, distinción y celebración.
             </p>
+            {/* Aviso de estacionamiento */}
+            <div className="col-span-2 mt-2 py-1 px-3 rounded-lg bg-neutral-900 border border-neutral-800 text-center">
+              <span className="text-[11px] tracking-wider text-amber-300 font-semibold">
+              ESTACIONAMIENTO NO DISPONIBLE
+              </span>
+            </div>
 
             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-neutral-800 text-xs">
               <div className="flex items-center justify-center space-x-2 text-neutral-300">
