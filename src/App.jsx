@@ -309,7 +309,7 @@ export default function App() {
             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-neutral-800 text-xs">
               <div className="flex items-center justify-center space-x-2 text-neutral-300">
                 <Calendar className="w-4 h-4 text-amber-400" />
-                <span>Viernes 14 Nov</span>
+                <span>Miercoles 25 Nov</span>
               </div>
               <div className="flex items-center justify-center space-x-2 text-neutral-300">
                 <Clock className="w-4 h-4 text-amber-400" />
