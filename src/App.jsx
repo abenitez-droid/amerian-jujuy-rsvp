@@ -320,7 +320,7 @@ export default function App() {
               </div>
               <div className="col-span-2 flex items-center justify-center space-x-2 text-neutral-300">
                 <MapPin className="w-4 h-4 text-amber-400" />
-                <span>San Salvador de Jujuy</span>
+                <span> Sanlón Rio Blanco - Hotel Amérian - San Salvador de Jujuy</span>
               </div>
             </div>
           </div>
