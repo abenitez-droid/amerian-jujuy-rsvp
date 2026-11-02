@@ -3,11 +3,11 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, push, set, update } from 'firebase/database';
 import { 
   Building2, Calendar, Clock, MapPin, CheckCircle, Search, 
-  UserCheck, Shield, Plus, FileSpreadsheet, Lock, Sparkles, RefreshCw
+  UserCheck, Shield, Plus, FileSpreadsheet, Lock, Sparkles, RefreshCw, UserPlus
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-// Configuración con TUS credenciales reales de Firebase
+// Credenciales Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyBDD8SVS0uHnYTlgIMQuIXJzmIYzVSayLA",
   authDomain: "amerian-jujuy-event.firebaseapp.com",
@@ -18,12 +18,12 @@ const firebaseConfig = {
   appId: "1:796737899796:web:d7cf5876e67a88c4674601"
 };
 
-// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 export default function App() {
   const [view, setView] = useState('guest'); // 'guest' | 'tablet'
+  const [canHaveCompanion, setCanHaveCompanion] = useState(false); // Control de link ?plus=1
   const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState(false);
@@ -40,6 +40,7 @@ export default function App() {
     phone: '',
     attending: 'si',
     companions: 0,
+    companionName: '',
     dietary: ''
   });
   const [submittedPass, setSubmittedPass] = useState(null);
@@ -48,17 +49,20 @@ export default function App() {
   const [searchDni, setSearchDni] = useState('');
   const [filter, setFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newGuest, setNewGuest] = useState({ name: '', dni: '', companions: 0, dietary: '' });
+  const [newGuest, setNewGuest] = useState({ name: '', dni: '', companions: 0, companionName: '', dietary: '' });
 
-  // Detectar parámetro ?view=tablet en la URL
+  // Detectar parámetros URL (?view=tablet y ?plus=1)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('view') === 'tablet') {
       setView('tablet');
     }
+    if (params.get('plus') === '1') {
+      setCanHaveCompanion(true);
+    }
   }, []);
 
-  // Escuchar la base de datos Firebase en Tiempo Real
+  // Escuchar Firebase en tiempo real
   useEffect(() => {
     const guestsRef = ref(db, 'guests');
     const unsubscribe = onValue(guestsRef, (snapshot) => {
@@ -84,16 +88,18 @@ export default function App() {
     if (!formData.name || !formData.dni) return;
 
     const formattedDni = formData.dni.replace(/\D/g, '');
+    const companionsCount = canHaveCompanion ? (parseInt(formData.companions) || 0) : 0;
     const guestsRef = ref(db, 'guests');
     
     const newGuestRef = push(guestsRef);
     const payload = {
       name: formData.name.toUpperCase().trim(),
       dni: formattedDni,
-      email: formData.email.toLowerCase().trim(), // Mail en minúsculas
+      email: formData.email.toLowerCase().trim(),
       phone: formData.phone.trim(),
       attending: formData.attending,
-      companions: parseInt(formData.companions) || 0,
+      companions: companionsCount,
+      companionName: companionsCount > 0 ? (formData.companionName.toUpperCase().trim() || 'ACOMPAÑANTE') : '-',
       dietary: formData.dietary ? formData.dietary.toUpperCase().trim() : 'NINGUNA',
       present: false,
       checkInTime: null,
@@ -130,6 +136,7 @@ export default function App() {
     const formattedDni = newGuest.dni.replace(/\D/g, '');
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-2digit', minute: '2-2digit' }) + ' hs';
+    const compCount = parseInt(newGuest.companions) || 0;
 
     const guestsRef = ref(db, 'guests');
     const newRef = push(guestsRef);
@@ -140,18 +147,19 @@ export default function App() {
       email: 'registro.presencial@hotel.com',
       phone: '-',
       attending: 'si',
-      companions: parseInt(newGuest.companions) || 0,
+      companions: compCount,
+      companionName: compCount > 0 ? (newGuest.companionName.toUpperCase().trim() || 'ACOMPAÑANTE') : '-',
       dietary: newGuest.dietary ? newGuest.dietary.toUpperCase().trim() : 'NINGUNA',
       present: true,
       checkInTime: timeStr,
       createdAt: now.toISOString()
     });
 
-    setNewGuest({ name: '', dni: '', companions: 0, dietary: '' });
+    setNewGuest({ name: '', dni: '', companions: 0, companionName: '', dietary: '' });
     setShowAddModal(false);
   };
 
-  // Desbloqueo por PIN de la Tablet
+  // Desbloqueo Tablet PIN
   const handlePinSubmit = (e) => {
     e.preventDefault();
     if (pin === '2026') {
@@ -166,13 +174,14 @@ export default function App() {
 
   // Exportar a CSV
   const exportToCSV = () => {
-    const headers = ["NOMBRE", "DNI", "EMAIL", "TELEFONO", "ACOMPAÑANTES", "RESTRICCIONES", "ESTADO", "HORA LLEGADA"];
+    const headers = ["NOMBRE", "DNI", "EMAIL", "TELEFONO", "ACOMPAÑANTES", "NOMBRE ACOMPAÑANTE", "RESTRICCIONES", "ESTADO", "HORA LLEGADA"];
     const rows = guests.map(g => [
       `"${g.name}"`,
       `"${g.dni}"`,
       `"${g.email || ''}"`,
       `"${g.phone || ''}"`,
       g.companions,
+      `"${g.companionName || '-'}"`,
       `"${g.dietary || 'NINGUNA'}"`,
       g.present ? "PRESENTE" : "AUSENTE",
       `"${g.checkInTime || '-'}"`
@@ -188,7 +197,6 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  // Teclado numérico táctil
   const handleNumPad = (digit) => {
     setSearchDni(prev => prev + digit);
   };
@@ -314,12 +322,23 @@ export default function App() {
             </div>
           </div>
 
-          {/* Formulario RSVP o Pase */}
+          {/* Formulario RSVP */}
           {!submittedPass ? (
             <form onSubmit={handleGuestSubmit} className="bg-neutral-900/90 border border-neutral-800 rounded-3xl p-6 space-y-5 shadow-xl">
-              <h3 className="text-lg font-serif text-amber-200 font-semibold border-b border-neutral-800 pb-2">
-                Confirmación de Asistencia
-              </h3>
+              <div className="border-b border-neutral-800 pb-3 flex justify-between items-center">
+                <h3 className="text-lg font-serif text-amber-200 font-semibold">
+                  Confirmación de Asistencia
+                </h3>
+                {canHaveCompanion ? (
+                  <span className="text-[11px] bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-full border border-amber-500/30 font-medium">
+                    Pase Especial: +1 Acompañante
+                  </span>
+                ) : (
+                  <span className="text-[11px] bg-neutral-800 text-neutral-400 px-2.5 py-1 rounded-full font-medium">
+                    Pase Individual
+                  </span>
+                )}
+              </div>
 
               <div className="space-y-4">
                 <div>
@@ -369,7 +388,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-neutral-400 mb-1">¿Asistirá?</label>
                     <select
@@ -381,20 +400,42 @@ export default function App() {
                       <option value="no">NO PODRÉ ASISTIR</option>
                     </select>
                   </div>
+
                   <div>
                     <label className="block text-xs text-neutral-400 mb-1">Acompañantes</label>
-                    <select
-                      value={formData.companions}
-                      onChange={(e) => setFormData({ ...formData, companions: e.target.value })}
-                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-100 uppercase focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="0">SOLO YO</option>
-                      <option value="1">+1 ACOMPAÑANTE</option>
-                      <option value="2">+2 ACOMPAÑANTES</option>
-                      <option value="3">+3 ACOMPAÑANTES</option>
-                    </select>
+                    {canHaveCompanion ? (
+                      <select
+                        value={formData.companions}
+                        onChange={(e) => setFormData({ ...formData, companions: e.target.value })}
+                        className="w-full bg-neutral-950 border border-amber-500/40 rounded-xl px-4 py-2.5 text-sm text-amber-200 uppercase focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="0">SOLO YO (0 ACOMPAÑANTES)</option>
+                        <option value="1">+1 ACOMPAÑANTE</option>
+                      </select>
+                    ) : (
+                      <div className="w-full bg-neutral-950/60 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-400">
+                        PASE INDIVIDUAL (0)
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Campo extra condicional si lleva +1 acompañante */}
+                {canHaveCompanion && formData.companions === '1' && (
+                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-3.5 space-y-1">
+                    <label className="block text-xs text-amber-300 font-semibold">
+                      Nombre y Apellido del Acompañante *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.companionName}
+                      onChange={(e) => setFormData({ ...formData, companionName: e.target.value.toUpperCase() })}
+                      placeholder="EJ. MARÍA LAURA JUÁREZ"
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-100 uppercase focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs text-neutral-400 mb-1">Restricción Alimentaria (Opcional)</label>
@@ -430,7 +471,10 @@ export default function App() {
               <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-left text-xs space-y-2">
                 <p className="text-neutral-400">TITULAR: <span className="text-neutral-100 font-semibold">{submittedPass.name}</span></p>
                 <p className="text-neutral-400">DNI: <span className="text-neutral-100 font-semibold">{submittedPass.dni}</span></p>
-                <p className="text-neutral-400">ACOMPAÑANTES: <span className="text-neutral-100 font-semibold">{submittedPass.companions}</span></p>
+                <p className="text-neutral-400">TIPO DE PASE: <span className="text-amber-300 font-semibold">{submittedPass.companions > 0 ? 'TITULAR + 1 ACOMPAÑANTE' : 'INDIVIDUAL'}</span></p>
+                {submittedPass.companions > 0 && (
+                  <p className="text-neutral-400">ACOMPAÑANTE: <span className="text-neutral-100 font-semibold">{submittedPass.companionName}</span></p>
+                )}
               </div>
 
               <p className="text-xs text-amber-400/80 italic">
@@ -453,7 +497,6 @@ export default function App() {
       {view === 'tablet' && (
         <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
           
-          {/* Header Tablet & Métricas */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-neutral-900 border border-neutral-800 p-4 rounded-2xl">
             <div>
               <h2 className="text-xl font-bold text-amber-200 flex items-center space-x-2">
@@ -463,7 +506,6 @@ export default function App() {
               <p className="text-xs text-neutral-400">Búsqueda rápida por DNI o Nombre</p>
             </div>
 
-            {/* KPIs */}
             <div className="grid grid-cols-4 gap-2 w-full md:w-auto text-center">
               <div className="bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">
                 <p className="text-xs text-neutral-400">TOTAL</p>
@@ -501,10 +543,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Buscador & Teclado Táctil */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* Panel de Búsqueda y Teclado Táctil */}
             <div className="lg:col-span-1 bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-4">
               <div className="relative">
                 <Search className="w-5 h-5 text-neutral-400 absolute left-3 top-3" />
@@ -517,7 +557,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Teclado Táctil para Tablet */}
               <div>
                 <p className="text-xs text-neutral-400 mb-2 font-semibold">Teclado Rápido DNI</p>
                 <div className="grid grid-cols-3 gap-2">
@@ -537,7 +576,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Filtros */}
               <div className="flex space-x-1 bg-neutral-950 p-1 rounded-xl border border-neutral-800 text-xs">
                 <button
                   onClick={() => setFilter('all')}
@@ -560,7 +598,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Lista de Invitados */}
             <div className="lg:col-span-2 bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3">
               <h3 className="text-sm font-bold text-neutral-300">
                 LISTA DE INVITADOS ({filteredGuests.length})
@@ -586,15 +623,23 @@ export default function App() {
                           : 'bg-neutral-950 border-neutral-800'
                       }`}
                     >
-                      <div className="space-y-0.5">
+                      <div className="space-y-1">
                         <div className="flex items-center space-x-2">
                           <span className="font-bold text-neutral-100">{g.name}</span>
                           <span className="text-xs bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded-md font-mono">
                             DNI: {g.dni}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-3 text-xs text-neutral-400">
-                          <span>Acompañantes: <strong className="text-neutral-200">{g.companions}</strong></span>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-400">
+                          {g.companions > 0 ? (
+                            <span className="text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                              +1 Acompañante: <strong className="text-white">{g.companionName || 'Sin especificar'}</strong>
+                            </span>
+                          ) : (
+                            <span className="text-neutral-400 bg-neutral-800/60 px-2 py-0.5 rounded">
+                              Pase Individual
+                            </span>
+                          )}
                           {g.dietary && g.dietary !== 'NINGUNA' && (
                             <span className="text-amber-400 font-semibold">Alimentación: {g.dietary}</span>
                           )}
@@ -659,14 +704,15 @@ export default function App() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-neutral-400 mb-1">Acompañantes</label>
-                  <input
-                    type="number"
-                    min="0"
+                  <label className="block text-neutral-400 mb-1">Acompañante</label>
+                  <select
                     value={newGuest.companions}
                     onChange={(e) => setNewGuest({ ...newGuest, companions: e.target.value })}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100"
-                  />
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100 uppercase"
+                  >
+                    <option value="0">SOLO YO (0)</option>
+                    <option value="1">+1 ACOMPAÑANTE</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-neutral-400 mb-1">Restricciones</label>
@@ -679,6 +725,19 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              {newGuest.companions === '1' && (
+                <div>
+                  <label className="block text-neutral-400 mb-1">Nombre del Acompañante</label>
+                  <input
+                    type="text"
+                    value={newGuest.companionName}
+                    onChange={(e) => setNewGuest({ ...newGuest, companionName: e.target.value.toUpperCase() })}
+                    placeholder="NOMBRE Y APELLIDO"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100 uppercase"
+                  />
+                </div>
+              )}
 
               <div className="flex space-x-2 pt-2">
                 <button
