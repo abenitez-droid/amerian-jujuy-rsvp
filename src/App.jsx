@@ -259,7 +259,7 @@ export default function App() {
             <div className="text-center">
               <Shield className="w-10 h-10 text-amber-400 mx-auto mb-2" />
               <h3 className="text-lg font-bold text-amber-100">Acceso Control Tablet</h3>
-              <p className="text-xs text-neutral-400">Ingresa el PIN de seguridad (Por defecto: 2026)</p>
+              <p className="text-xs text-neutral-400">Ingresa el PIN de seguridad </p>
             </div>
 
             <form onSubmit={handlePinSubmit} className="space-y-3">
