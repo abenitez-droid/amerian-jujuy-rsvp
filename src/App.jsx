@@ -311,7 +311,7 @@ export default function App() {
     setShowTokenModal(false);
   };
 
-  // Descargar CSV con los links de invitación
+  // Descargar CSV de Tokens con formato directo para Excel (sep=; y UTF-8 BOM)
   const exportTokensCSV = () => {
     const baseUrl = window.location.origin;
     const headers = ["CODIGO", "TIPO", "ESTADO", "USADO POR", "DNI", "LINK DE INVITACION"];
@@ -324,10 +324,10 @@ export default function App() {
       `"${baseUrl}/?token=${t.code}"`
     ]);
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = "\uFEFFsep=;\n" + headers.join(";") + "\n" + rows.map(e => e.join(";")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.href = URL.createObjectURL(blob);
     link.setAttribute("download", `ENLACES_INVITACIONES_AMERIAN.csv`);
     document.body.appendChild(link);
     link.click();
@@ -347,7 +347,7 @@ export default function App() {
     }
   };
 
-  // Exportar a CSV Asistencia
+  // Exportar Asistencia con formato directo para Excel (sep=; y UTF-8 BOM)
   const exportToCSV = () => {
     const headers = ["NOMBRE", "DNI", "EMAIL", "TELEFONO", "ACOMPAÑANTES", "NOMBRE ACOMPAÑANTE", "DNI ACOMPAÑANTE", "RESTRICCIONES", "TOKEN", "ESTADO", "HORA LLEGADA"];
     const rows = guests.map(g => [
@@ -364,10 +364,10 @@ export default function App() {
       `"${g.checkInTime || '-'}"`
     ]);
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = "\uFEFFsep=;\n" + headers.join(";") + "\n" + rows.map(e => e.join(";")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.href = URL.createObjectURL(blob);
     link.setAttribute("download", `ASISTENCIA_AMERIAN_JUJUY.csv`);
     document.body.appendChild(link);
     link.click();
@@ -496,7 +496,7 @@ export default function App() {
               </div>
               <div className="col-span-2 flex items-center justify-center space-x-2 text-neutral-300">
                 <MapPin className="w-4 h-4 text-amber-400" />
-                <span>Salón Rio Blanco - Hotel Amérian - San Salvador de Jujuy</span>
+                <span>Hotel Amérian - San Salvador de Jujuy</span>
               </div>
 
               {/* Aviso Estacionamiento debajo del Salón */}
@@ -937,7 +937,7 @@ export default function App() {
             </h3>
             
             <p className="text-xs text-neutral-400 leading-relaxed">
-              Crea invitaciones de un solo uso. Una vez generadas, descarga el archivo CSV con los enlaces directos para enviar por WhatsApp.
+              Crea invitaciones de un solo uso. Una vez generadas, descarga el archivo CSV formateado para abrir directamente en Excel.
             </p>
 
             <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 space-y-3">
