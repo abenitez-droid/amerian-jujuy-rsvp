@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import logoImg from '../logo.png';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, push, set, update } from 'firebase/database';
+import { getDatabase, ref, onValue, push, set, update, get } from 'firebase/database';
 import { 
   Building2, Calendar, Clock, MapPin, CheckCircle, Search, 
-  UserCheck, Shield, Plus, FileSpreadsheet, Lock, Sparkles, RefreshCw, UserPlus
+  UserCheck, Shield, Plus, FileSpreadsheet, Lock, Sparkles, RefreshCw, UserPlus,
+  KeyRound, AlertCircle, XCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -24,7 +25,6 @@ const db = getDatabase(app);
 
 export default function App() {
   const [view, setView] = useState('guest'); // 'guest' | 'tablet'
-  const [canHaveCompanion, setCanHaveCompanion] = useState(false); // Control de link ?plus=1
   const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState(false);
@@ -32,6 +32,11 @@ export default function App() {
   // Estados de Invitados
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Estados de Validación de Token
+  const [tokenParam, setTokenParam] = useState(null);
+  const [tokenStatus, setTokenStatus] = useState('verifying'); // 'verifying' | 'valid' | 'used' | 'invalid' | 'no_token'
+  const [tokenData, setTokenData] = useState(null);
 
   // Estados del Formulario Invitado
   const [formData, setFormData] = useState({
@@ -42,31 +47,82 @@ export default function App() {
     attending: 'si',
     companions: 0,
     companionName: '',
+    companionDni: '',
     dietary: ''
   });
   const [submittedPass, setSubmittedPass] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Estados de la Tablet
   const [searchDni, setSearchDni] = useState('');
   const [filter, setFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newGuest, setNewGuest] = useState({ name: '', dni: '', companions: 0, companionName: '', dietary: '' });
+  const [newGuest, setNewGuest] = useState({ name: '', dni: '', companions: 0, companionName: '', companionDni: '', dietary: '' });
+  const [manualAddError, setManualAddError] = useState('');
 
-  // Detectar parámetros URL (?view=tablet y ?plus=1)
+  // Estados Gestión de Tokens en Tablet
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [tokenGenQtyInd, setTokenGenQtyInd] = useState(300);
+  const [tokenGenQtyPlus, setTokenGenQtyPlus] = useState(100);
+  const [isGeneratingTokens, setIsGeneratingTokens] = useState(false);
+  const [tokensList, setTokensList] = useState([]);
+
+  // Detectar URL y validar Token / LocalStorage
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('view') === 'tablet') {
       setView('tablet');
+      setTokenStatus('valid');
+      return;
     }
-    if (params.get('plus') === '1') {
-      setCanHaveCompanion(true);
+
+    // Bloqueo por dispositivo: si ya completó su confirmación en este navegador
+    const savedPass = localStorage.getItem('amerian_rsvp_pass');
+    if (savedPass) {
+      try {
+        setSubmittedPass(JSON.parse(savedPass));
+        setTokenStatus('valid');
+        return;
+      } catch (err) {
+        localStorage.removeItem('amerian_rsvp_pass');
+      }
     }
+
+    const token = params.get('token') || params.get('inv');
+    setTokenParam(token);
+
+    if (!token) {
+      setTokenStatus('no_token');
+      return;
+    }
+
+    // Validar token contra Firebase
+    const tokenRef = ref(db, `tokens/${token}`);
+    get(tokenRef).then((snapshot) => {
+      if (snapshot.exists()) {
+        const val = snapshot.val();
+        if (val.used) {
+          setTokenStatus('used');
+          setTokenData(val);
+        } else {
+          setTokenStatus('valid');
+          setTokenData(val);
+          if (val.type === 'plus1') {
+            setFormData(prev => ({ ...prev, companions: 1 }));
+          }
+        }
+      } else {
+        setTokenStatus('invalid');
+      }
+    }).catch(() => {
+      setTokenStatus('invalid');
+    });
   }, []);
 
   // Escuchar Firebase en tiempo real
   useEffect(() => {
     const guestsRef = ref(db, 'guests');
-    const unsubscribe = onValue(guestsRef, (snapshot) => {
+    const unsubscribeGuests = onValue(guestsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const guestList = Object.keys(data).map(key => ({
@@ -80,19 +136,50 @@ export default function App() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    const tokensRef = ref(db, 'tokens');
+    const unsubscribeTokens = onValue(tokensRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const tList = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        setTokensList(tList);
+      } else {
+        setTokensList([]);
+      }
+    });
+
+    return () => {
+      unsubscribeGuests();
+      unsubscribeTokens();
+    };
   }, []);
 
-  // Enviar Confirmación (Invitado)
-  const handleGuestSubmit = (e) => {
+  // Enviar Confirmación (Invitado con Token Único)
+  const handleGuestSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
+
     if (!formData.name || !formData.dni) return;
 
     const formattedDni = formData.dni.replace(/\D/g, '');
-    const companionsCount = canHaveCompanion ? (parseInt(formData.companions) || 0) : 0;
+    const formattedCompDni = formData.companionDni ? formData.companionDni.replace(/\D/g, '') : '-';
+
+    // Validación preventiva por DNI
+    const existingGuest = guests.find(g => g.dni === formattedDni);
+    if (existingGuest) {
+      setErrorMessage(`El DNI ${formattedDni} ya cuenta con una confirmación registrada (${existingGuest.name}).`);
+      setSubmittedPass(existingGuest);
+      localStorage.setItem('amerian_rsvp_pass', JSON.stringify(existingGuest));
+      return;
+    }
+
+    const canPlus = tokenData?.type === 'plus1';
+    const companionsCount = canPlus ? (parseInt(formData.companions) || 0) : 0;
     const guestsRef = ref(db, 'guests');
-    
     const newGuestRef = push(guestsRef);
+
     const payload = {
       name: formData.name.toUpperCase().trim(),
       dni: formattedDni,
@@ -101,14 +188,33 @@ export default function App() {
       attending: formData.attending,
       companions: companionsCount,
       companionName: companionsCount > 0 ? (formData.companionName.toUpperCase().trim() || 'ACOMPAÑANTE') : '-',
+      companionDni: companionsCount > 0 ? formattedCompDni : '-',
       dietary: formData.dietary ? formData.dietary.toUpperCase().trim() : 'NINGUNA',
+      tokenUsed: tokenParam || 'MANUAL',
       present: false,
       checkInTime: null,
       createdAt: new Date().toISOString()
     };
 
-    set(newGuestRef, payload);
-    setSubmittedPass({ ...payload, id: newGuestRef.key });
+    // Guardar invitado
+    await set(newGuestRef, payload);
+
+    // Quemar token en Firebase para que no vuelva a ser usado
+    if (tokenParam) {
+      const tokenRef = ref(db, `tokens/${tokenParam}`);
+      await update(tokenRef, {
+        used: true,
+        usedBy: payload.name,
+        usedDni: payload.dni,
+        usedAt: new Date().toISOString()
+      });
+    }
+
+    const savedRecord = { ...payload, id: newGuestRef.key };
+    setSubmittedPass(savedRecord);
+
+    // Bloquear el dispositivo guardando el pase en localStorage
+    localStorage.setItem('amerian_rsvp_pass', JSON.stringify(savedRecord));
 
     confetti({
       particleCount: 80,
@@ -132,9 +238,19 @@ export default function App() {
   // Agregar Invitado Manual (Tablet)
   const handleManualAdd = (e) => {
     e.preventDefault();
+    setManualAddError('');
+
     if (!newGuest.name || !newGuest.dni) return;
 
     const formattedDni = newGuest.dni.replace(/\D/g, '');
+    const formattedCompDni = newGuest.companionDni ? newGuest.companionDni.replace(/\D/g, '') : '-';
+
+    const existingGuest = guests.find(g => g.dni === formattedDni);
+    if (existingGuest) {
+      setManualAddError(`El DNI ${formattedDni} ya está registrado a nombre de ${existingGuest.name}.`);
+      return;
+    }
+
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-2digit', minute: '2-2digit' }) + ' hs';
     const compCount = parseInt(newGuest.companions) || 0;
@@ -150,14 +266,72 @@ export default function App() {
       attending: 'si',
       companions: compCount,
       companionName: compCount > 0 ? (newGuest.companionName.toUpperCase().trim() || 'ACOMPAÑANTE') : '-',
+      companionDni: compCount > 0 ? formattedCompDni : '-',
       dietary: newGuest.dietary ? newGuest.dietary.toUpperCase().trim() : 'NINGUNA',
+      tokenUsed: 'PUERTA',
       present: true,
       checkInTime: timeStr,
       createdAt: now.toISOString()
     });
 
-    setNewGuest({ name: '', dni: '', companions: 0, companionName: '', dietary: '' });
+    setNewGuest({ name: '', dni: '', companions: 0, companionName: '', companionDni: '', dietary: '' });
     setShowAddModal(false);
+  };
+
+  // Generador masivo de Tokens
+  const handleGenerateTokens = async () => {
+    setIsGeneratingTokens(true);
+    const updates = {};
+    const genCode = (prefix) => prefix + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+
+    // Generar individuales
+    for (let i = 0; i < parseInt(tokenGenQtyInd || 0); i++) {
+      const code = genCode('IND');
+      updates[`tokens/${code}`] = {
+        code,
+        type: 'individual',
+        used: false,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    // Generar con acompañante (+1)
+    for (let i = 0; i < parseInt(tokenGenQtyPlus || 0); i++) {
+      const code = genCode('PLUS');
+      updates[`tokens/${code}`] = {
+        code,
+        type: 'plus1',
+        used: false,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    await update(ref(db), updates);
+    setIsGeneratingTokens(false);
+    setShowTokenModal(false);
+  };
+
+  // Descargar CSV con los links de invitación
+  const exportTokensCSV = () => {
+    const baseUrl = window.location.origin;
+    const headers = ["CODIGO", "TIPO", "ESTADO", "USADO POR", "DNI", "LINK DE INVITACION"];
+    const rows = tokensList.map(t => [
+      `"${t.code}"`,
+      `"${t.type === 'plus1' ? 'CON ACOMPAÑANTE (+1)' : 'INDIVIDUAL'}"`,
+      `"${t.used ? 'UTILIZADO' : 'DISPONIBLE'}"`,
+      `"${t.usedBy || '-'}"`,
+      `"${t.usedDni || '-'}"`,
+      `"${baseUrl}/?token=${t.code}"`
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `ENLACES_INVITACIONES_AMERIAN.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Desbloqueo Tablet PIN
@@ -173,9 +347,9 @@ export default function App() {
     }
   };
 
-  // Exportar a CSV
+  // Exportar a CSV Asistencia
   const exportToCSV = () => {
-    const headers = ["NOMBRE", "DNI", "EMAIL", "TELEFONO", "ACOMPAÑANTES", "NOMBRE ACOMPAÑANTE", "RESTRICCIONES", "ESTADO", "HORA LLEGADA"];
+    const headers = ["NOMBRE", "DNI", "EMAIL", "TELEFONO", "ACOMPAÑANTES", "NOMBRE ACOMPAÑANTE", "DNI ACOMPAÑANTE", "RESTRICCIONES", "TOKEN", "ESTADO", "HORA LLEGADA"];
     const rows = guests.map(g => [
       `"${g.name}"`,
       `"${g.dni}"`,
@@ -183,7 +357,9 @@ export default function App() {
       `"${g.phone || ''}"`,
       g.companions,
       `"${g.companionName || '-'}"`,
+      `"${g.companionDni || '-'}"`,
       `"${g.dietary || 'NINGUNA'}"`,
+      `"${g.tokenUsed || '-'}"`,
       g.present ? "PRESENTE" : "AUSENTE",
       `"${g.checkInTime || '-'}"`
     ]);
@@ -329,17 +505,47 @@ export default function App() {
                   ESTACIONAMIENTO NO DISPONIBLE
                 </span>
               </div>
+
+              {/* Leyenda Límite de Acreditación */}
+              <div className="col-span-2 pt-1 text-center">
+                <span className="text-[11px] text-neutral-400 tracking-wide font-medium">
+                  Acreditación hasta el <strong className="text-amber-300">21/11</strong>
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Formulario RSVP */}
-          {!submittedPass ? (
+          {/* ESTADO: TOKEN YA UTILIZADO */}
+          {tokenStatus === 'used' && !submittedPass && (
+            <div className="bg-neutral-900 border border-red-500/30 rounded-3xl p-8 text-center space-y-4">
+              <XCircle className="w-12 h-12 text-red-400 mx-auto" />
+              <h3 className="text-xl font-serif font-bold text-red-200">Invitación ya utilizada</h3>
+              <p className="text-sm text-neutral-300 leading-relaxed">
+                Este enlace de confirmación ya fue registrado{tokenData?.usedBy ? ` por ${tokenData.usedBy}` : ''}. Cada invitación es personal y de un solo uso.
+              </p>
+              <p className="text-xs text-neutral-500">Si crees que se trata de un error, comunícate con la organización del hotel.</p>
+            </div>
+          )}
+
+          {/* ESTADO: ENLACE INVÁLIDO O SIN TOKEN */}
+          {(tokenStatus === 'invalid' || tokenStatus === 'no_token') && !submittedPass && (
+            <div className="bg-neutral-900 border border-amber-500/30 rounded-3xl p-8 text-center space-y-4">
+              <Lock className="w-12 h-12 text-amber-400 mx-auto" />
+              <h3 className="text-xl font-serif font-bold text-amber-100">Enlace de Invitación Requerido</h3>
+              <p className="text-sm text-neutral-300 leading-relaxed">
+                Para confirmar su asistencia, por favor ingrese mediante el enlace personal enviado a su WhatsApp o correo electrónico.
+              </p>
+            </div>
+          )}
+
+          {/* ESTADO: FORMULARIO ACTIVO (TOKEN VÁLIDO) */}
+          {tokenStatus === 'valid' && !submittedPass && (
             <form onSubmit={handleGuestSubmit} className="bg-neutral-900/90 border border-neutral-800 rounded-3xl p-6 space-y-5 shadow-xl">
               <div className="border-b border-neutral-800 pb-3 flex justify-between items-center">
                 <h3 className="text-lg font-serif text-amber-200 font-semibold">
                   Confirmación de Asistencia
                 </h3>
-                {canHaveCompanion ? (
+                {tokenData?.type === 'plus1' ? (
                   <span className="text-[11px] bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-full border border-amber-500/30 font-medium">
                     Pase Especial: +1 Acompañante
                   </span>
@@ -349,6 +555,13 @@ export default function App() {
                   </span>
                 )}
               </div>
+
+              {errorMessage && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start space-x-2 text-red-300 text-xs">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>
@@ -413,14 +626,14 @@ export default function App() {
 
                   <div>
                     <label className="block text-xs text-neutral-400 mb-1">Acompañantes</label>
-                    {canHaveCompanion ? (
+                    {tokenData?.type === 'plus1' ? (
                       <select
                         value={formData.companions}
                         onChange={(e) => setFormData({ ...formData, companions: e.target.value })}
                         className="w-full bg-neutral-950 border border-amber-500/40 rounded-xl px-4 py-2.5 text-sm text-amber-200 uppercase focus:outline-none focus:border-amber-500"
                       >
-                        <option value="0">SOLO YO (0 ACOMPAÑANTES)</option>
                         <option value="1">+1 ACOMPAÑANTE</option>
+                        <option value="0">SOLO YO (0 ACOMPAÑANTES)</option>
                       </select>
                     ) : (
                       <div className="w-full bg-neutral-950/60 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-400">
@@ -430,20 +643,36 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Campo extra condicional si lleva +1 acompañante */}
-                {canHaveCompanion && formData.companions === '1' && (
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-3.5 space-y-1">
-                    <label className="block text-xs text-amber-300 font-semibold">
-                      Nombre y Apellido del Acompañante *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.companionName}
-                      onChange={(e) => setFormData({ ...formData, companionName: e.target.value.toUpperCase() })}
-                      placeholder="EJ. MARÍA LAURA JUÁREZ"
-                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-100 uppercase focus:outline-none focus:border-amber-500"
-                    />
+                {/* Campos condicionales si lleva +1 acompañante */}
+                {tokenData?.type === 'plus1' && formData.companions === '1' && (
+                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-3.5 space-y-3">
+                    <p className="text-xs text-amber-300 font-semibold tracking-wide">
+                      DATOS DEL ACOMPAÑANTE
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-neutral-400 mb-1">Nombre y Apellido *</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.companionName}
+                          onChange={(e) => setFormData({ ...formData, companionName: e.target.value.toUpperCase() })}
+                          placeholder="EJ. MARÍA LAURA JUÁREZ"
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 uppercase focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-neutral-400 mb-1">DNI del Acompañante *</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.companionDni}
+                          onChange={(e) => setFormData({ ...formData, companionDni: e.target.value })}
+                          placeholder="38123456"
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -467,36 +696,34 @@ export default function App() {
                 <span>CONFIRMAR MI ASISTENCIA</span>
               </button>
             </form>
-          ) : (
-            /* PASE DIGITAL */
+          )}
+
+          {/* PASE DIGITAL REGISTRADO (BLOQUEO DE REINGRESO) */}
+          {submittedPass && (
             <div className="bg-gradient-to-b from-neutral-900 to-neutral-950 border border-amber-500/50 rounded-3xl p-6 text-center space-y-5 shadow-2xl animate-fade-in">
               <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-xl font-serif text-amber-100 font-bold">¡CONFIRMACIÓN EXITOSA!</h3>
+                <h3 className="text-xl font-serif text-amber-100 font-bold">¡ASISTENCIA CONFIRMADA!</h3>
                 <p className="text-xs text-neutral-400 mt-1">Tu lugar ha sido reservado en el evento.</p>
               </div>
 
               <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-left text-xs space-y-2">
                 <p className="text-neutral-400">TITULAR: <span className="text-neutral-100 font-semibold">{submittedPass.name}</span></p>
-                <p className="text-neutral-400">DNI: <span className="text-neutral-100 font-semibold">{submittedPass.dni}</span></p>
+                <p className="text-neutral-400">DNI TITULAR: <span className="text-neutral-100 font-semibold">{submittedPass.dni}</span></p>
                 <p className="text-neutral-400">TIPO DE PASE: <span className="text-amber-300 font-semibold">{submittedPass.companions > 0 ? 'TITULAR + 1 ACOMPAÑANTE' : 'INDIVIDUAL'}</span></p>
                 {submittedPass.companions > 0 && (
-                  <p className="text-neutral-400">ACOMPAÑANTE: <span className="text-neutral-100 font-semibold">{submittedPass.companionName}</span></p>
+                  <>
+                    <p className="text-neutral-400">ACOMPAÑANTE: <span className="text-neutral-100 font-semibold">{submittedPass.companionName}</span></p>
+                    <p className="text-neutral-400">DNI ACOMPAÑANTE: <span className="text-neutral-100 font-semibold">{submittedPass.companionDni || '-'}</span></p>
+                  </>
                 )}
               </div>
 
               <p className="text-xs text-amber-400/80 italic">
                 El día del evento solo debes indicar tu DNI en la recepción.
               </p>
-
-              <button
-                onClick={() => setSubmittedPass(null)}
-                className="text-xs text-neutral-500 hover:text-neutral-300 underline"
-              >
-                Cargar otra respuesta
-              </button>
             </div>
           )}
 
@@ -535,17 +762,27 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex space-x-2 w-full md:w-auto">
+            <div className="flex flex-wrap gap-2 w-full md:w-auto">
               <button
-                onClick={() => setShowAddModal(true)}
-                className="flex-1 md:flex-none px-3 py-2 bg-amber-500 text-black font-bold rounded-xl text-xs flex items-center justify-center space-x-1 hover:bg-amber-400"
+                onClick={() => setShowTokenModal(true)}
+                className="px-3 py-2 bg-neutral-800 border border-amber-500/30 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1 hover:bg-neutral-700"
+              >
+                <KeyRound className="w-4 h-4" />
+                <span>GESTIONAR TOKENS</span>
+              </button>
+              <button
+                onClick={() => {
+                  setManualAddError('');
+                  setShowAddModal(true);
+                }}
+                className="px-3 py-2 bg-amber-500 text-black font-bold rounded-xl text-xs flex items-center justify-center space-x-1 hover:bg-amber-400"
               >
                 <Plus className="w-4 h-4" />
                 <span>AGREGAR VIP</span>
               </button>
               <button
                 onClick={exportToCSV}
-                className="flex-1 md:flex-none px-3 py-2 bg-neutral-800 text-neutral-200 rounded-xl text-xs flex items-center justify-center space-x-1 hover:bg-neutral-700"
+                className="px-3 py-2 bg-neutral-800 text-neutral-200 rounded-xl text-xs flex items-center justify-center space-x-1 hover:bg-neutral-700"
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 <span>EXPORTAR CSV</span>
@@ -643,7 +880,7 @@ export default function App() {
                         <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-400">
                           {g.companions > 0 ? (
                             <span className="text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                              +1 Acompañante: <strong className="text-white">{g.companionName || 'Sin especificar'}</strong>
+                              +1 Acompañante: <strong className="text-white">{g.companionName || 'Sin especificar'}</strong> (DNI: {g.companionDni || '-'})
                             </span>
                           ) : (
                             <span className="text-neutral-400 bg-neutral-800/60 px-2 py-0.5 rounded">
@@ -652,6 +889,11 @@ export default function App() {
                           )}
                           {g.dietary && g.dietary !== 'NINGUNA' && (
                             <span className="text-amber-400 font-semibold">Alimentación: {g.dietary}</span>
+                          )}
+                          {g.tokenUsed && (
+                            <span className="text-[10px] bg-neutral-800 px-1.5 py-0.5 rounded text-neutral-400">
+                              {g.tokenUsed}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -685,15 +927,103 @@ export default function App() {
         </main>
       )}
 
+      {/* MODAL GESTIÓN DE TOKENS */}
+      {showTokenModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-amber-500/30 rounded-2xl p-6 max-w-lg w-full space-y-4">
+            <h3 className="text-lg font-bold text-amber-100 flex items-center space-x-2">
+              <KeyRound className="w-5 h-5 text-amber-400" />
+              <span>GENERADOR DE LINKS ÚNICOS</span>
+            </h3>
+            
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Crea invitaciones de un solo uso. Una vez generadas, descarga el archivo CSV con los enlaces directos para enviar por WhatsApp.
+            </p>
+
+            <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span>Tokens existentes en base de datos:</span>
+                <span className="font-bold text-amber-300 font-mono">{tokensList.length}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span>Tokens ya utilizados:</span>
+                <span className="font-bold text-red-400 font-mono">{tokensList.filter(t => t.used).length}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span>Tokens disponibles:</span>
+                <span className="font-bold text-green-400 font-mono">{tokensList.filter(t => !t.used).length}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block text-neutral-400 mb-1">Cantidad Individuales</label>
+                <input
+                  type="number"
+                  value={tokenGenQtyInd}
+                  onChange={(e) => setTokenGenQtyInd(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100 font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-neutral-400 mb-1">Cantidad Con Acompañante (+1)</label>
+                <input
+                  type="number"
+                  value={tokenGenQtyPlus}
+                  onChange={(e) => setTokenGenQtyPlus(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleGenerateTokens}
+                disabled={isGeneratingTokens}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 disabled:opacity-50"
+              >
+                {isGeneratingTokens ? 'GENERANDO...' : 'CREAR LOTE DE TOKENS'}
+              </button>
+              {tokensList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={exportTokensCSV}
+                  className="flex-1 py-2.5 rounded-xl bg-neutral-800 text-neutral-200 border border-neutral-700 font-bold text-xs hover:bg-neutral-700"
+                >
+                  DESCARGAR PLANILLA DE LINKS
+                </button>
+              )}
+            </div>
+
+            <div className="text-right">
+              <button
+                onClick={() => setShowTokenModal(false)}
+                className="text-xs text-neutral-500 hover:text-neutral-300"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL AGREGAR GUEST EN PUERTA */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-neutral-900 border border-amber-500/30 rounded-2xl p-6 max-w-md w-full space-y-4">
             <h3 className="text-lg font-bold text-amber-100">ACREDITACIÓN EXPRESS EN PUERTA</h3>
             
+            {manualAddError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-2.5 flex items-start space-x-2 text-red-300 text-xs">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
+                <span>{manualAddError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleManualAdd} className="space-y-3 text-xs">
               <div>
-                <label className="block text-neutral-400 mb-1">Nombre y Apellido</label>
+                <label className="block text-neutral-400 mb-1">Nombre y Apellido Titular</label>
                 <input
                   type="text"
                   required
@@ -703,7 +1033,7 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block text-neutral-400 mb-1">DNI / Documento</label>
+                <label className="block text-neutral-400 mb-1">DNI / Documento Titular</label>
                 <input
                   type="text"
                   required
@@ -737,15 +1067,29 @@ export default function App() {
               </div>
 
               {newGuest.companions === '1' && (
-                <div>
-                  <label className="block text-neutral-400 mb-1">Nombre del Acompañante</label>
-                  <input
-                    type="text"
-                    value={newGuest.companionName}
-                    onChange={(e) => setNewGuest({ ...newGuest, companionName: e.target.value.toUpperCase() })}
-                    placeholder="NOMBRE Y APELLIDO"
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-neutral-100 uppercase"
-                  />
+                <div className="grid grid-cols-2 gap-2 bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">
+                  <div>
+                    <label className="block text-neutral-400 mb-1">Nombre Acompañante</label>
+                    <input
+                      type="text"
+                      required
+                      value={newGuest.companionName}
+                      onChange={(e) => setNewGuest({ ...newGuest, companionName: e.target.value.toUpperCase() })}
+                      placeholder="NOMBRE Y APELLIDO"
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2 text-neutral-100 uppercase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 mb-1">DNI Acompañante</label>
+                    <input
+                      type="text"
+                      required
+                      value={newGuest.companionDni}
+                      onChange={(e) => setNewGuest({ ...newGuest, companionDni: e.target.value })}
+                      placeholder="DNI"
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2 text-neutral-100"
+                    />
+                  </div>
                 </div>
               )}
 
