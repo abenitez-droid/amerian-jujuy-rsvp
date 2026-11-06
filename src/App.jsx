@@ -629,11 +629,11 @@ export default function App() {
                     {tokenData?.type === 'plus1' ? (
                       <select
                         value={formData.companions}
-                        onChange={(e) => setFormData({ ...formData, companions: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, companions: parseInt(e.target.value) || 0 })}
                         className="w-full bg-neutral-950 border border-amber-500/40 rounded-xl px-4 py-2.5 text-sm text-amber-200 uppercase focus:outline-none focus:border-amber-500"
                       >
-                        <option value="1">+1 ACOMPAÑANTE</option>
-                        <option value="0">SOLO YO (0 ACOMPAÑANTES)</option>
+                        <option value={1}>+1 ACOMPAÑANTE</option>
+                        <option value={0}>SOLO YO (0 ACOMPAÑANTES)</option>
                       </select>
                     ) : (
                       <div className="w-full bg-neutral-950/60 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-400">
@@ -643,8 +643,8 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Campos condicionales si lleva +1 acompañante */}
-                {tokenData?.type === 'plus1' && formData.companions === '1' && (
+                {/* Campos condicionales si lleva +1 acompañante (corregido: Number > 0) */}
+                {tokenData?.type === 'plus1' && Number(formData.companions) > 0 && (
                   <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-3.5 space-y-3">
                     <p className="text-xs text-amber-300 font-semibold tracking-wide">
                       DATOS DEL ACOMPAÑANTE
