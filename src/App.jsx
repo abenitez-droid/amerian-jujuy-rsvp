@@ -66,6 +66,7 @@ export default function App() {
   const [tokenGenQtyPlus, setTokenGenQtyPlus] = useState(100);
   const [isGeneratingTokens, setIsGeneratingTokens] = useState(false);
   const [tokensList, setTokensList] = useState([]);
+  const [lastBatchCreated, setLastBatchCreated] = useState([]);
 
   // Detectar URL y validar Token / LocalStorage
   useEffect(() => {
@@ -278,37 +279,65 @@ export default function App() {
     setShowAddModal(false);
   };
 
-  // Generador masivo de Tokens
+  // Generador masivo de Tokens guardando el lote recién creado
   const handleGenerateTokens = async () => {
     setIsGeneratingTokens(true);
     const updates = {};
+    const newlyCreated = [];
     const genCode = (prefix) => prefix + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
 
     // Generar individuales
     for (let i = 0; i < parseInt(tokenGenQtyInd || 0); i++) {
       const code = genCode('IND');
-      updates[`tokens/${code}`] = {
+      const tokenItem = {
         code,
         type: 'individual',
         used: false,
         createdAt: new Date().toISOString()
       };
+      updates[`tokens/${code}`] = tokenItem;
+      newlyCreated.push(tokenItem);
     }
 
     // Generar con acompañante (+1)
     for (let i = 0; i < parseInt(tokenGenQtyPlus || 0); i++) {
       const code = genCode('PLUS');
-      updates[`tokens/${code}`] = {
+      const tokenItem = {
         code,
         type: 'plus1',
         used: false,
         createdAt: new Date().toISOString()
       };
+      updates[`tokens/${code}`] = tokenItem;
+      newlyCreated.push(tokenItem);
     }
 
     await update(ref(db), updates);
+    setLastBatchCreated(newlyCreated);
     setIsGeneratingTokens(false);
-    setShowTokenModal(false);
+  };
+
+  // Descargar CSV EXCLUSIVAMENTE del último lote creado
+  const exportLastBatchCSV = () => {
+    if (lastBatchCreated.length === 0) return;
+
+    const baseUrl = window.location.origin;
+    const headers = ["CODIGO", "TIPO", "ESTADO", "LINK DE INVITACION"];
+    const rows = lastBatchCreated.map(t => [
+      `"${t.code}"`,
+      `"${t.type === 'plus1' ? 'CON ACOMPAÑANTE (+1)' : 'INDIVIDUAL'}"`,
+      `"DISPONIBLE"`,
+      `"${baseUrl}/?token=${t.code}"`
+    ]);
+
+    const csvContent = "\uFEFFsep=;\n" + headers.join(";") + "\n" + rows.map(e => e.join(";")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `LOTE_NUEVO_${lastBatchCreated.length}_TOKENS.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Descargar CSV de Tokens con formato directo para Excel (sep=; y UTF-8 BOM)
@@ -976,22 +1005,35 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <div className="flex flex-col gap-2 pt-2">
               <button
                 type="button"
                 onClick={handleGenerateTokens}
                 disabled={isGeneratingTokens}
-                className="flex-1 py-2.5 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 disabled:opacity-50"
+                className="w-full py-2.5 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 disabled:opacity-50 transition"
               >
                 {isGeneratingTokens ? 'GENERANDO...' : 'CREAR LOTE DE TOKENS'}
               </button>
+
+              {/* Botón dinámico verde: aparece apenas generas un lote nuevo */}
+              {lastBatchCreated.length > 0 && (
+                <button
+                  type="button"
+                  onClick={exportLastBatchCSV}
+                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg flex items-center justify-center space-x-2"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>DESCARGAR SOLO LOS {lastBatchCreated.length} RECIÉN CREADOS</span>
+                </button>
+              )}
+
               {tokensList.length > 0 && (
                 <button
                   type="button"
                   onClick={exportTokensCSV}
-                  className="flex-1 py-2.5 rounded-xl bg-neutral-800 text-neutral-200 border border-neutral-700 font-bold text-xs hover:bg-neutral-700"
+                  className="w-full py-2 rounded-xl bg-neutral-800 text-neutral-300 border border-neutral-700 font-medium text-xs hover:bg-neutral-700 transition"
                 >
-                  DESCARGAR PLANILLA DE LINKS
+                  Descargar Planilla Histórica Completa ({tokensList.length})
                 </button>
               )}
             </div>
