@@ -413,12 +413,34 @@ export default function App() {
   const totalAbsent = totalGuests - totalPresent;
   const attendanceRate = totalGuests > 0 ? Math.round((totalPresent / totalGuests) * 100) : 0;
 
+  // Función de normalización para ignorar tildes, mayúsculas y espacios
+  const normalizeText = (text) => 
+    (text || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+
+  // Filtrado optimizado: busca por DNI o por Nombre (titular y acompañante)
   const filteredGuests = guests.filter(g => {
-    const searchUpper = searchDni.toUpperCase();
-    const matchesDni = g.dni.includes(searchDni.replace(/\D/g, '')) || g.name.includes(searchUpper);
-    if (filter === 'present') return matchesDni && g.present;
-    if (filter === 'absent') return matchesDni && !g.present;
-    return matchesDni;
+    const queryRaw = searchDni.trim();
+    const queryDigits = searchDni.replace(/\D/g, '');
+    const queryNormalized = normalizeText(searchDni);
+
+    let matchesQuery = true;
+
+    if (queryRaw !== '') {
+      const matchesDni = queryDigits !== '' && (
+        (g.dni && g.dni.includes(queryDigits)) ||
+        (g.companionDni && g.companionDni.includes(queryDigits))
+      );
+
+      const matchesName = 
+        normalizeText(g.name).includes(queryNormalized) ||
+        normalizeText(g.companionName).includes(queryNormalized);
+
+      matchesQuery = matchesDni || matchesName;
+    }
+
+    if (filter === 'present') return matchesQuery && g.present;
+    if (filter === 'absent') return matchesQuery && !g.present;
+    return matchesQuery;
   });
 
   return (
@@ -672,7 +694,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Campos condicionales si lleva +1 acompañante (corregido: Number > 0) */}
+                {/* Campos condicionales si lleva +1 acompañante */}
                 {tokenData?.type === 'plus1' && Number(formData.companions) > 0 && (
                   <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-3.5 space-y-3">
                     <p className="text-xs text-amber-300 font-semibold tracking-wide">
@@ -920,7 +942,7 @@ export default function App() {
                             <span className="text-amber-400 font-semibold">Alimentación: {g.dietary}</span>
                           )}
                           {g.tokenUsed && (
-                            <span className="text-[10px] bg-neutral-800 px-1.5 py-0.5 rounded text-neutral-400">
+                            <span className="text-[10px] bg-neutral-800 px-1.5 py-0.5 rounded text-neutral-400 font-mono">
                               {g.tokenUsed}
                             </span>
                           )}
