@@ -408,16 +408,22 @@ export default function App() {
   };
 
   // Métricas
-  const totalGuests = guests.length;
-  const totalPresent = guests.filter(g => g.present).length;
+  const totalTitulares = guests.length;
+  const totalCompanions = guests.reduce((acc, g) => acc + (Number(g.companions) || 0), 0);
+  const totalGuests = totalTitulares + totalCompanions;
+
+  const totalPresent = guests
+    .filter(g => g.present)
+    .reduce((acc, g) => acc + 1 + (Number(g.companions) || 0), 0);
+
   const totalAbsent = totalGuests - totalPresent;
   const attendanceRate = totalGuests > 0 ? Math.round((totalPresent / totalGuests) * 100) : 0;
 
-  // Función de normalización para ignorar tildes, mayúsculas y espacios
+  // Normalizar texto para la búsqueda
   const normalizeText = (text) => 
     (text || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
-  // Filtrado optimizado: busca por DNI o por Nombre (titular y acompañante)
+  // Búsqueda por DNI o Nombre (titular y acompañante)
   const filteredGuests = guests.filter(g => {
     const queryRaw = searchDni.trim();
     const queryDigits = searchDni.replace(/\D/g, '');
@@ -794,10 +800,15 @@ export default function App() {
               <p className="text-xs text-neutral-400">Búsqueda rápida por DNI o Nombre</p>
             </div>
 
-            <div className="grid grid-cols-4 gap-2 w-full md:w-auto text-center">
+            {/* TABLERO DE CONTADORES: TOTAL, ACOMPAÑANTES, PRESENTES, AUSENTES, ASISTENCIA */}
+            <div className="grid grid-cols-5 gap-2 w-full md:w-auto text-center">
               <div className="bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">
                 <p className="text-xs text-neutral-400">TOTAL</p>
                 <p className="text-lg font-bold text-neutral-100">{totalGuests}</p>
+              </div>
+              <div className="bg-neutral-950 p-2.5 rounded-xl border border-amber-500/40">
+                <p className="text-xs text-amber-300 font-medium">ACOMP.</p>
+                <p className="text-lg font-bold text-amber-200">{totalCompanions}</p>
               </div>
               <div className="bg-neutral-950 p-2.5 rounded-xl border border-green-800">
                 <p className="text-xs text-green-400">PRESENTES</p>
@@ -885,13 +896,13 @@ export default function App() {
                   onClick={() => setFilter('present')}
                   className={`flex-1 py-1.5 rounded-lg font-medium transition ${filter === 'present' ? 'bg-green-500 text-black' : 'text-neutral-400'}`}
                 >
-                  PRESENTES ({totalPresent})
+                  PRESENTES ({guests.filter(g => g.present).length})
                 </button>
                 <button
                   onClick={() => setFilter('absent')}
                   className={`flex-1 py-1.5 rounded-lg font-medium transition ${filter === 'absent' ? 'bg-amber-600 text-black' : 'text-neutral-400'}`}
                 >
-                  AUSENTES ({totalAbsent})
+                  AUSENTES ({guests.filter(g => !g.present).length})
                 </button>
               </div>
             </div>
