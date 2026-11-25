@@ -60,8 +60,11 @@ export default function App() {
   const [newGuest, setNewGuest] = useState({ name: '', dni: '', companions: 0, companionName: '', companionDni: '', dietary: '' });
   const [manualAddError, setManualAddError] = useState('');
 
-  // Estados Gestión de Tokens en Tablet
+  // Estados Gestión de Tokens en Tablet + Seguridad por Contraseña
   const [showTokenModal, setShowTokenModal] = useState(false);
+  const [showTokenAuthModal, setShowTokenAuthModal] = useState(false);
+  const [tokenPin, setTokenPin] = useState('');
+  const [tokenPinError, setTokenPinError] = useState(false);
   const [tokenGenQtyInd, setTokenGenQtyInd] = useState(300);
   const [tokenGenQtyPlus, setTokenGenQtyPlus] = useState(100);
   const [isGeneratingTokens, setIsGeneratingTokens] = useState(false);
@@ -224,10 +227,10 @@ export default function App() {
     });
   };
 
-  // Marcar Presente (Tablet)
+  // Marcar Presente (Tablet) - Formato de hora corregido ('2-digit')
   const handleCheckIn = (guestId) => {
     const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: '2-2digit', minute: '2-2digit' }) + ' hs';
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' hs';
     
     const guestRef = ref(db, `guests/${guestId}`);
     update(guestRef, {
@@ -236,7 +239,7 @@ export default function App() {
     });
   };
 
-  // Agregar Invitado Manual (Tablet)
+  // Agregar Invitado Manual (Tablet) - Formato de hora corregido ('2-digit')
   const handleManualAdd = (e) => {
     e.preventDefault();
     setManualAddError('');
@@ -253,7 +256,7 @@ export default function App() {
     }
 
     const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: '2-2digit', minute: '2-2digit' }) + ' hs';
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' hs';
     const compCount = parseInt(newGuest.companions) || 0;
 
     const guestsRef = ref(db, 'guests');
@@ -277,6 +280,19 @@ export default function App() {
 
     setNewGuest({ name: '', dni: '', companions: 0, companionName: '', companionDni: '', dietary: '' });
     setShowAddModal(false);
+  };
+
+  // Validar contraseña maestra para abrir el Gestor de Tokens
+  const handleTokenAuthSubmit = (e) => {
+    e.preventDefault();
+    if (tokenPin.trim().toUpperCase() === 'ADMIN2026') {
+      setShowTokenAuthModal(false);
+      setTokenPin('');
+      setTokenPinError(false);
+      setShowTokenModal(true);
+    } else {
+      setTokenPinError(true);
+    }
   };
 
   // Generador masivo de Tokens guardando el lote recién creado
@@ -521,6 +537,59 @@ export default function App() {
                   className="w-1/2 py-2 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400"
                 >
                   Entrar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONTRASEÑA PARA GESTIONAR TOKENS */}
+      {showTokenAuthModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-amber-500/40 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto mb-2">
+                <KeyRound className="w-6 h-6 text-amber-400" />
+              </div>
+              <h3 className="text-lg font-bold text-amber-100">Acceso Restringido</h3>
+              <p className="text-xs text-neutral-400 mt-1">
+                Ingresa la contraseña de administrador para generar o descargar tokens.
+              </p>
+            </div>
+
+            <form onSubmit={handleTokenAuthSubmit} className="space-y-3">
+              <input
+                type="password"
+                autoFocus
+                value={tokenPin}
+                onChange={(e) => {
+                  setTokenPin(e.target.value);
+                  setTokenPinError(false);
+                }}
+                placeholder="Contraseña maestra"
+                className="w-full text-center text-base tracking-widest py-2.5 rounded-xl bg-neutral-950 border border-amber-500/30 text-amber-200 focus:outline-none focus:border-amber-400"
+              />
+              {tokenPinError && (
+                <p className="text-xs text-red-400 text-center">Contraseña incorrecta. Acceso denegado.</p>
+              )}
+              <div className="flex space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTokenAuthModal(false);
+                    setTokenPin('');
+                    setTokenPinError(false);
+                  }}
+                  className="w-1/2 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-semibold hover:bg-neutral-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-amber-500 text-black text-xs font-bold hover:bg-amber-400"
+                >
+                  Desbloquear
                 </button>
               </div>
             </form>
@@ -825,11 +894,16 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              {/* Botón protegido con contraseña */}
               <button
-                onClick={() => setShowTokenModal(true)}
-                className="px-3 py-2 bg-neutral-800 border border-amber-500/30 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1 hover:bg-neutral-700"
+                onClick={() => {
+                  setTokenPin('');
+                  setTokenPinError(false);
+                  setShowTokenAuthModal(true);
+                }}
+                className="px-3 py-2 bg-neutral-800 border border-amber-500/30 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 hover:bg-neutral-700"
               >
-                <KeyRound className="w-4 h-4" />
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
                 <span>GESTIONAR TOKENS</span>
               </button>
               <button
